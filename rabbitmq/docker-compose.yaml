@@ -1,0 +1,34 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13.2-management
+    build: .
+    container_name: rabbitmq
+    hostname: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+
+    ports:
+      - ${RABBITMQ_EXTERNAL_PORT}:15672
+      - 5672:5672
+
+    networks:
+      - rabbitmq_network
+      - ethernet_network
+    volumes:
+      - rabbitmq_data_volume:/var/lib/rabbitmq
+
+networks:
+  rabbitmq_network:
+    name: rabbitmq_network
+    driver: bridge
+    internal: true
+
+  ethernet_network:
+    name: ethernet_network
+    driver: bridge
+
+volumes:
+  rabbitmq_data_volume:
+    name: "rabbitmq_data_volume"

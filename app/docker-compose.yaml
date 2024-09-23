@@ -1,0 +1,104 @@
+services:
+  prefect_server:
+    mem_limit: 2048m  # Жесткий лимит памяти
+    mem_reservation: 1024m  # Мягкий лимит памяти
+    cpus: 0.5  # пол ядра
+
+    image: prefecthq/prefect:3.0-python3.12-kubernetes
+    restart: always
+    volumes:
+      - prefect:/root/.prefect
+    networks:
+      - rabbitmq_network
+      - ethernet_network
+    entrypoint: [ "/opt/prefect/entrypoint.sh", "prefect", "server", "start" ]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DNS: ${RABBITMQ_DNS}
+
+      PREFECT_UI_URL: ${PREFECT_UI_URL}
+      PREFECT_API_URL: ${PREFECT_API_URL}
+      PREFECT_SERVER_API_HOST: ${PREFECT_SERVER_API_HOST}
+      PREFECT_API_DATABASE_CONNECTION_URL: ${PREFECT_API_DATABASE_CONNECTION_URL}
+    ports:
+      - 4200:4200
+    depends_on:
+      - database
+
+
+
+  ### Prefect Database
+  database:
+    image: postgres:15.2-alpine
+    restart: always
+    networks:
+      - rabbitmq_network
+      - ethernet_network
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=prefect
+    expose:
+      - 5432
+    volumes:
+      - db:/var/lib/postgresql/data
+
+
+  ### MinIO for flow storage
+  minio:
+    image: minio/minio:latest
+    networks:
+      - rabbitmq_network
+      - ethernet_network
+    entrypoint: [ "minio", "server", "--address", "0.0.0.0:9000", "--console-address", "0.0.0.0:9001", "/data" ]
+    volumes:
+      - "minio:/data"
+    ports:
+      - 9000:9000
+      - 9001:9001
+    profiles: [ "minio" ]
+
+
+
+  ## Prefect Agent
+  agent:
+    image: prefecthq/prefect:3.0-python3.12-kubernetes
+    restart: always
+    entrypoint: [ "/opt/prefect/entrypoint.sh", "prefect", "agent", "start", "-q", "YOUR_WORK_QUEUE_NAME" ]
+    environment:
+      - PREFECT_API_URL=http://server:4200/api
+    #       Use PREFECT_API_KEY if connecting the agent to Prefect Cloud
+    #     - PREFECT_API_KEY=YOUR_API_KEY
+    profiles: [ "agent" ]
+
+  ### Prefect CLI
+  cli:
+    image: prefecthq/prefect:3.0-python3.12-kubernetes
+    entrypoint: "bash"
+    working_dir: "/root/flows"
+    volumes:
+      - "./flows:/root/flows"
+    environment:
+      - PREFECT_API_URL=http://server:4200/api
+    #       Use PREFECT_API_KEY to use the CLI to interact with Prefect Cloud
+    #     - PREFECT_API_KEY=YOUR_API_KEY
+    profiles: [ "cli" ]
+
+volumes:
+  prefect:
+  db:
+  minio:
+
+networks:
+  default:
+    name: prefect-network
+
+  rabbitmq_network:
+    external: true
+    name: rabbitmq_network
+
+
+  ethernet_network:
+    external: true
+    name: ethernet_network

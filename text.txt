@@ -1,0 +1,13 @@
+prefect work-pool create --type docker sobes_workers
+prefect work-pool update sobes_workers --concurrency-limit 1
+
+prefect work-queue create read_csv_queue -p sobes_workers
+prefect work-queue create send_request_queue -p sobes_workers --limit 1
+prefect work-queue create data_processing_queue -p sobes_workers 
+
+prefect worker start --pool "sobes_workers" --work-queue "default"
+prefect worker start --pool "sobes_workers" --work-queue "send_request_queue"
+prefect worker start --pool "sobes_workers" --work-queue "data_processing_queue"
+
+prefect gcl create my_timeout --limit 999999 --slot-decay-per-second 0.033
+prefect gcl create my-concurrency-limit --limit 5 --slot-decay-per-second 1.0
